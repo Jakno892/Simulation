@@ -1,0 +1,326 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Wall.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Window.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/appearances/protos/PaintedWood.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Door.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/DoorLever.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/lights/protos/CeilingLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/tables/protos/Desk.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/cabinet/protos/Cabinet.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/chairs/protos/OfficeChair.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/advertising_board/protos/AdvertisingBoard.proto"
+
+WorldInfo {
+  info [
+    "Bitcraze's Crazyflie drone with autonomoy."
+    "This simulation has the Crazyflie in an apartement with wall following'"
+  ]
+  title "thesis_simulation"
+}
+Viewpoint {
+  orientation 0.4825363725367063 -0.12933429421982093 -0.8662743731161494 3.179703843813032
+  position 3.1625245529224175 -2.274244385386485 9.479889694061084
+  exposure 0.5
+  follow "Crazyflie"
+}
+TexturedBackground {
+  texture "empty_office"
+  skybox FALSE
+  skyColor [
+    0.2 0.2 0.2
+  ]
+}
+DEF FLOOR Solid {
+  translation -2.2 -2.65 0
+  children [
+    Shape {
+      appearance Parquetry {
+        textureTransform TextureTransform {
+          scale 6 9
+        }
+      }
+      geometry DEF FLOOR_PLANE Plane {
+        size 4.4 5.3
+      }
+    }
+  ]
+  name "floor"
+  boundingObject USE FLOOR_PLANE
+  locked TRUE
+}
+Desk {
+  translation -0.505 -3.2126 0
+  rotation 0 0 -1 -5.307179586466759e-06
+  name "desk (west, R)"
+}
+Desk {
+  translation -0.505 -2.0126 0
+  rotation 0 0 -1 -5.307179586466759e-06
+  name "desk (west, L)"
+}
+Cabinet {
+  hidden position_6_0 6.399798787867376e-06
+  hidden translation_7 -1.273559958776914e-06 -4.0752679009159465e-12 0
+  hidden rotation_7 0 0 1 6.399801531773194e-06
+  hidden position_10_0 -5.440791833954961e-06
+  hidden translation_11 -9.203099387089412e-07 2.5036084316809593e-12 0
+  hidden rotation_11 0 0 -1 5.440781060675363e-06
+  translation -0.7 -0.79 0
+  rotation 0 0 1 -1.5707953071795862
+  name "cabinet(2)"
+  depth 0.2
+}
+Cabinet {
+  hidden position_6_0 6.39979878787818e-06
+  hidden translation_7 -1.273559958779064e-06 -4.0752679009159465e-12 0
+  hidden rotation_7 0 0 0.9999999999999999 6.399801531773194e-06
+  hidden position_10_0 -5.440791833954961e-06
+  hidden translation_11 -9.203099387089412e-07 2.5036084316809593e-12 0
+  hidden rotation_11 0 0 -1 5.440781060675363e-06
+  translation -1.11 -0.59 0
+  rotation 0 0 1 3.14159
+  name "cabinet(1)"
+  depth 0.2
+}
+Wall {
+  translation -1.05382 -5.38944 0
+  rotation 0 0 1 1.57
+  name "wall(11)"
+  size 0.2 0.3 2.7
+}
+Wall {
+  translation -2.17378 -5.38854 0
+  rotation 0 0 1 1.57
+  name "wall(10)"
+  size 0.2 0.37 2.7
+}
+Window {
+  translation -2.75 -5.39 0
+  rotation 0 0 1 1.5708
+  name "North Window (C)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+Wall {
+  translation -3.33387 -5.38762 0
+  rotation 0 0 1 1.57
+  name "wall(9)"
+  size 0.2 0.37 2.7
+}
+Window {
+  translation -3.9 -5.39 0
+  rotation 0 0 1 1.5708
+  name "North Window (R)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+Wall {
+  translation -4.44392 -5.38673 0
+  rotation 0 0 1 1.57
+  name "wall(5)"
+  size 0.2 0.3 2.7
+}
+Desk {
+  translation -2.745 -4.9026 0
+  rotation 0 0 1 1.5708
+  name "desk (north)"
+}
+Wall {
+  translation -1.04945 0.10056 0
+  rotation 0 0 1 1.57
+  name "wall(6)"
+  size 0.2 0.3 2.7
+}
+Wall {
+  translation -4.44945 0.10328 0
+  rotation 0 0 1 1.57
+  name "wall(4)"
+  size 0.2 0.3 2.7
+}
+Window {
+  translation -2.75 0.0999997 0
+  rotation 0 0 1 1.5708
+  name "South window (C)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+Wall {
+  translation -3.32945 0.102384 0
+  rotation 0 0 1 1.57
+  name "wall(7)"
+  size 0.2 0.36 2.7
+}
+Window {
+  translation -1.59 0.0999995 0
+  rotation 0 0 1 1.5708
+  name "South window (R)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+Cabinet {
+  hidden position_6_0 6.399798787883796e-06
+  hidden translation_7 -1.273559958780182e-06 -4.0752679009159465e-12 0
+  hidden rotation_7 0 0 1 6.399801531773194e-06
+  hidden position_10_0 -5.440791833954961e-06
+  hidden translation_11 -9.203099387089412e-07 2.5036084316809593e-12 0
+  hidden rotation_11 0 0 -1 5.440781060675363e-06
+  translation -4.39 -0.48 0
+  depth 0.2
+}
+OfficeChair {
+  hidden position_0_0 -2.4063010686248276e-05
+  hidden rotation_1 0 0 -1 2.4063008556812844e-05
+  translation -2.769999998797961 -1.2299999552924568 -0.0014145376230723927
+  rotation 0.0006972817409901934 -0.0007075262097697062 0.9999995066022964 1.570800495076824
+}
+Wall {
+  translation -2.16945 0.101456 0
+  rotation 0 0 1 1.57
+  name "wall(8)"
+  size 0.2 0.37 2.7
+}
+Wall {
+  translation -0.35 -4.6 0
+  rotation 0 0 1 1.57
+  name "wall(3)"
+  size 0.2 1.1 2.7
+}
+Wall {
+  translation -0.35 -0.7 0
+  rotation 0 0 1 1.57
+  name "wall(2)"
+  size 0.2 1.1 2.7
+}
+DEF ROOF Solid {
+  translation -4.95 -3.3 2.3999
+  rotation 1 0 0 3.14159
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.8 0.8
+        baseColorMap ImageTexture {
+          url [
+            "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/default/worlds/textures/roughcast.jpg"
+          ]
+        }
+        roughness 0.5
+        metalness 0
+        textureTransform TextureTransform {
+          scale 8 8
+        }
+      }
+      geometry USE FLOOR_PLANE
+    }
+  ]
+  name "roof"
+  boundingObject USE FLOOR_PLANE
+  locked TRUE
+}
+Wall {
+  translation 0.1 -2.65 0
+  name "wall 2"
+  size 0.2 3.7 2.7
+}
+Wall {
+  translation -1 -4.9 0
+  name "wall(1)"
+  size 0.2 0.8 2.7
+}
+Wall {
+  translation -4.5 -3.65 0
+  name "wall 3"
+  size 0.2 3.3 2.7
+}
+AdvertisingBoard {
+  translation -4.39 -3.34 0.46
+  name "Whiteboard"
+  frontTexture [
+    "../../../../Pictures/Screenshots/Screenshot from 2024-06-14 14-18-09.png"
+  ]
+  backTexture [
+    "../../../../Pictures/Screenshots/Screenshot from 2024-06-14 14-18-09.png"
+  ]
+  displayWidth 1.5
+  displayHeight 1.3
+  frameThickness 0.1
+}
+Wall {
+  translation -4.5 -0.5 0
+  name "wall 4"
+  size 0.2 1 2.7
+}
+Door {
+  hidden translation_5 0.0010664817450265762 -2.0849163692548967e-05 0
+  hidden rotation_5 0 0 1 0.00013995849635967716
+  translation -4.5 -1.5 0
+  name "Door"
+  size 0.2 1 2.7
+  position 0.00013995849665103917
+  jointAtLeft FALSE
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+  doorHandle DoorLever {
+    rotation 0 0 1 3.14
+    hasStaticParent TRUE
+  }
+}
+Window {
+  translation -3.91 0.1 0
+  rotation 0 0 1 1.5708
+  name "South window (L)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+CeilingLight {
+  translation -2.4611 -2.4432 2.4
+  name "ceiling light 2"
+  pointLightIntensity 5
+}
+Desk {
+  translation -2.745 -0.512598 0
+  rotation 0 0 1 1.5708
+  name "desk (south)"
+}
+Window {
+  translation -1.59 -5.39 0
+  rotation 0 0 1 1.5708
+  name "North Window (L)"
+  size 0.2 0.8 2.7
+  frameAppearance PaintedWood {
+    colorOverride 0.13333333333333333 0.13333333333333333 0.13333333333333333
+  }
+}
+Crazyflie {
+  translation -2.5 -3 0.0126764
+  rotation -1.4829262815429369e-06 0.9999999999989005 1.2564496550192894e-15 3.141592653589786
+  controller "spiral_search"
+}
+SpotLight {
+  attenuation 0 0 1
+  beamWidth 0.0001
+  color 0.75 0.14 0.15
+  cutOffAngle 0.001
+  direction -1 0 0
+  intensity 500
+  location -1.33 -3 1.5
+  radius 1000
+}
+Wall {
+  translation -1 -0.4 0
+  size 0.2 0.8 2.7
+}
