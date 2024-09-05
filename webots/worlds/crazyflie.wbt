@@ -1,0 +1,233 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Wall.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Window.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Door.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/tables/protos/Desk.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/advertising_board/protos/AdvertisingBoard.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/chairs/protos/OfficeChair.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/Ceiling.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/computers/protos/Monitor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/computers/protos/Keyboard.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/computers/protos/Laptop.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/computers/protos/ComputerMouse.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/animals/protos/Cat.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/apartment_structure/protos/DoorLever.proto"
+EXTERNPROTO "../protos/Crazyflie.proto"
+
+WorldInfo {
+  info [
+    "Bitcraze's Crazyflie drone."
+    "This simulation allows you to pilot the drone with your keyboard."
+  ]
+  title "Crazyflie"
+}
+Viewpoint {
+  orientation -0.025758242183803178 -0.9993474353972795 -0.02532224959360177 4.859699379890425
+  position -1.0574830652184628 -0.3208823926767111 9.779544523886573
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+  luminosity 0.5
+}
+Floor {
+}
+Cat {
+  translation 0.39876 -1.81 0.74
+  rotation 0 0 1 0.523599
+}
+SpotLight {
+  attenuation 0 0 1
+  beamWidth 0.0001
+  color 0.75 0.14 0.15
+  cutOffAngle 0.001
+  direction 1 0 0
+  intensity 500
+  location -1 0.3 1.5
+  radius 1000
+}
+Ceiling {
+}
+OfficeChair {
+  translation 0.279997 1.42 0
+  rotation 0 0 1 1.5708
+  name "office chair(2)"
+}
+Wall {
+  translation 2.3 1.15 0
+  name "East Wall Left"
+  size 0.2 3 2.4
+}
+OfficeChair {
+  translation 0 -1.12 0
+  rotation 0 0 1 -1.5707953071795862
+}
+Wall {
+  translation 2.3 -2 0
+  name "East Wall Right"
+  size 0.2 1.3 2.4
+}
+Door {
+  translation 2.3 -0.85 0
+  rotation 0 0 1 3.14159
+  jointAtLeft FALSE
+  doorHandle DoorLever {
+    jointAtLeft FALSE
+  }
+}
+Desk {
+  translation -1.8 -1.13 0
+}
+Desk {
+  translation -1.8 0.07 0
+  name "desk(1)"
+}
+Desk {
+  translation -1.8 1.28 0
+  name "desk(2)"
+}
+Desk {
+  translation -0.719999 -1.92 0
+  rotation 0 0 1 1.5708
+  name "desk(3)"
+}
+Keyboard {
+  translation -0.411246 -1.7814 0.72
+  rotation 0 0 -1 -1.3090053071795866
+}
+ComputerMouse {
+  translation -0.678584 -1.70124 0.71
+  rotation -4.62575e-09 1.11675e-08 -1 1.8326
+}
+Laptop {
+  translation 0.385621 -1.82366 0.72
+  rotation 0 0 1 2.0944
+}
+OfficeChair {
+  translation -1.32 0.150001 0
+  rotation 0 0 1 3.14159
+  name "office chair(1)"
+}
+Desk {
+  translation 0.480001 -1.92 0
+  rotation 0 0 1 1.5708
+  name "desk(4)"
+}
+Monitor {
+  translation -0.503109 -2.01247 0.72
+  rotation 0 0 -1 -1.3090053071795866
+  name "monitor(1)"
+}
+Desk {
+  translation 0.349998 1.97 0
+  rotation 0 0 1 1.5708
+  name "desk(6)"
+}
+AdvertisingBoard {
+  translation 2.15 0.62 0.47
+  name "Whiteboard"
+  frontTexture [
+    "../images/whiteboard.png"
+  ]
+  backTexture [
+    "../images/whiteboard.png"
+  ]
+  displayWidth 1.5
+  displayHeight 1.3
+  frameThickness 0.1
+}
+Desk {
+  translation 1.56999 2 0
+  rotation 0 0 1 1.5708
+  name "desk(7)"
+}
+Desk {
+  translation -0.880002 1.97 0
+  rotation 0 0 1 1.5708
+  name "desk(5)"
+}
+Wall {
+  translation 2.1 -2.55 0
+  name "South Wall Left"
+  size 0.2 0.2 2.4
+}
+Wall {
+  translation 2.1 2.55 0
+  name "North Wall Right"
+  size 0.2 0.2 2.4
+}
+Wall {
+  translation -1.795 -2.55 0
+  name "South Wall Right"
+  size 0.81 0.2 2.4
+}
+Wall {
+  translation -1.795 2.55 0
+  name "North Wall Left"
+  size 0.81 0.2 2.4
+}
+Wall {
+  translation -0.34 -2.55 0
+  name "South Wall Middle Right"
+  size 0.5 0.2 2.4
+}
+Wall {
+  translation -0.34 2.55 0
+  name "North Wall Middle Left"
+  size 0.5 0.2 2.4
+}
+Wall {
+  translation 0.96 -2.55 0
+  name "South Wall Middle Left"
+  size 0.5 0.2 2.4
+}
+Wall {
+  translation 0.96 2.55 0
+  name "North Wall Middle RIght"
+  size 0.5 0.2 2.4
+}
+Wall {
+  translation -2.3 0 0
+  name "West Wall"
+  size 0.2 5.3 2.4
+}
+Window {
+  translation 1.6 -2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "South Window Left"
+}
+Window {
+  translation 1.6 2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "North Window Right"
+}
+Window {
+  translation 0.31 2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "North Window Middle"
+}
+Window {
+  translation -0.99 -2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "South Window Right"
+}
+Window {
+  translation -0.99 2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "North Window Left"
+}
+Window {
+  translation 0.31 -2.55 0
+  rotation 0 0 1 -1.5707953071795862
+  name "South Window Middle)"
+}
+Monitor {
+  translation -0.0168654 -2.0896 0.72
+  rotation 0 0 -1 -1.5708053071795867
+}
+Crazyflie {
+}
