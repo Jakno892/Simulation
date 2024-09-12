@@ -3,21 +3,42 @@
 
 #include "spiral_search.h"
 
-#define GRID_SIZE 30 // Size of the grid (NxNxN)
-#define INF 1e10 // A large number to represent infinity
+#define SAFETY_MARGIN 0.2
+#define GRID_SIZE_X 20
+#define GRID_SIZE_Y 20
+#define GRID_SIZE_Z 10
+#define GRID_CELL_SIZE 0.2
+#define INF 1e9
+#define OBSTACLE_PENALTY 1000.0
+#define GRID_CHAR '.'
+#define OBSTACLE_CHAR 'O'
+#define OBSTACLE_MARGIN_CHAR '#'
+#define PATH_CHAR '*'
+#define START_CHAR 'S'
+#define GOAL_CHAR 'G'
 
 typedef struct Node {
     coord_t coord;
-    double gCost, hCost, fCost;
+    float gCost, hCost, fCost;
     struct Node* parent;
 } Node;
 
-double heuristic(coord_t a, coord_t b);
+typedef struct Obstacle {
+    coord_t min, max;
+    float margin;
+} Obstacle;
+
+float heuristic(coord_t a, coord_t b);
 int isInBounds(coord_t coord);
-Node* createNode(coord_t coord, double gCost, double hCost, Node* parent);
-double AStar(coord_t start, coord_t goal, Node* path[], int* pathLength);
+Node* createNode(coord_t coord, float gCost, float hCost, Node* parent);
+int isBlocked(coord_t* node, Obstacle* obstacle);
+float calculateObstaclePenalty(coord_t* node, Obstacle* obstacle);
+float AStar(coord_t start, coord_t goal, Node* path[], int* pathLength, Obstacle* obstacles[], int numObstacles);
 void printPath(Node* path[], int pathLength);
-coord_t scaleCoords(coord_t realCoord, coord_t start, coord_t goal);
-coord_t rescaleCoords(coord_t gridCoord, coord_t start, coord_t goal);
+void drawPath(Node* path[], int pathLength, Obstacle* obstacles[], int numObstacles);
+void scaleCoords(coord_t *realCoord);
+void rescaleCoords(coord_t *realCoord);
+void scaleObstacle(Obstacle* obstacle);
+void rescaleObstacle(Obstacle* obstacle);
 
 #endif

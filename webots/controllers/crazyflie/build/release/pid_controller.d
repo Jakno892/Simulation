@@ -1,1 +1,2 @@
-build/release/pid_controller.o: pid_controller.c pid_controller.h
+build/release/pid_controller.o: pid_controller.c pid_controller.h \
+ spiral_search.h

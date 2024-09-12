@@ -1,31 +1,7 @@
 /*
- * Copyright 2022 Bitcraze AB
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
- *  ...........       ____  _ __
- *  |  ,-^-,  |      / __ )(_) /_______________ _____  ___
- *  | (  O  ) |     / __  / / __/ ___/ ___/ __ `/_  / / _ \
- *  | / ,..´  |    / /_/ / / /_/ /__/ /  / /_/ / / /_/  __/
- *     +.......   /_____/_/\__/\___/_/   \__,_/ /___/\___/
- *
- *
- * @file crazyflie_controller.c
- * Description: Controls the crazyflie in webots
- * Author:      Kimberly McGuire (Bitcraze AB)
- */
+  Modified from the crazyflie model.
+  Link: 
+*/
 
 #include <math.h>
 #include <stdio.h>
@@ -42,50 +18,130 @@
 #include <webots/motor.h>
 #include <webots/robot.h>
 
-
 // Add external controller
-#include "pid_controller.h"
+// #include "pid_controller.h"
 #include "spiral_search.h"
 #include "path_planner.h"
 
-#define FLYING_ALTITUDE 1.5
 #define MAX_RADIUS 1.0
+
+typedef struct sensors
+{
+    WbDeviceTag imu;
+    WbDeviceTag gyro;
+    WbDeviceTag accelerometer;
+    WbDeviceTag tofsensor;
+    WbDeviceTag camera;
+    WbDeviceTag gps;
+    // WbDeviceTag opticalflow;
+} sensor_t;
+
+typedef struct motors
+{
+    WbDeviceTag frontLeft;
+    WbDeviceTag rearLeft;
+    WbDeviceTag rearRight;
+    WbDeviceTag frontRight;
+} motor_t;
+
+void initMotors(motor_t* motors)
+{
+  // Front left
+  wb_motor_set_position(motors->frontLeft, INFINITY);
+  wb_motor_set_velocity(motors->frontLeft, -1.0);
+  // Front right
+  wb_motor_set_position(motors->rearLeft, INFINITY);
+  wb_motor_set_velocity(motors->rearLeft, 1.0);
+  // Rear left
+  wb_motor_set_position(motors->rearRight, INFINITY);
+  wb_motor_set_velocity(motors->rearRight, -1.0);
+  // Rear right
+  wb_motor_set_position(motors->frontRight, INFINITY);
+  wb_motor_set_velocity(motors->frontRight, 1.0);
+}
+
+void initSensors(sensor_t* sensors, const int timestep)
+{
+  // Initialize sensors
+
+  wb_inertial_unit_enable(sensors->imu, timestep);
+  wb_accelerometer_enable(sensors->accelerometer, timestep);
+  wb_gyro_enable(sensors->gyro, timestep);
+  wb_camera_enable(sensors->camera, timestep);
+  wb_distance_sensor_enable(sensors->tofsensor, timestep);  
+  wb_gps_enable(sensors->gps, timestep);
+  // wb_camera_enable(opticalflow, timestep);
+}
+
+// Collect sensor measurements
+void measurementUpdate(sensor_t* sensors, cf_state_t* measuredState, coord_t* previousState, const float dt)
+{
+  measuredState->roll = wb_inertial_unit_get_roll_pitch_yaw(sensors->imu)[0];
+  measuredState->pitch = wb_inertial_unit_get_roll_pitch_yaw(sensors->imu)[1];
+  measuredState->yaw = wb_inertial_unit_get_roll_pitch_yaw(sensors->imu)[2];
+  measuredState->yaw_rate = wb_gyro_get_values(sensors->gyro)[2];
+  // measuredState->altitude = wb_distance_sensor_get_value(sensors->tofsensor);
+  // measuredState->altitude *= cos(measuredState->pitch)*cos(measuredState->roll);
+  measuredState->altitude = wb_gps_get_values(sensors->gps)[2];
+
+  // Calculate velocity and position 
+
+  // The Flow deck measures horizontal velocity through optical flow
+  // Due to no pre-made opticalflow sensors this is simulated through
+  // GPS measurements
+
+  float pos_x = wb_gps_get_values(sensors->gps)[0];
+  float pos_y = wb_gps_get_values(sensors->gps)[1];
+
+  measuredState->vx = (pos_x - previousState->x) / dt;
+  measuredState->vy = (pos_y - previousState->y) / dt;
+
+  measuredState->x += measuredState->vx*dt; // Position is (re)calculated
+  measuredState->y += measuredState->vy*dt; // using velocity.
+}
 
 int main(int argc, char **argv) {
   wb_robot_init();
 
   const int timestep = (int)wb_robot_get_basic_time_step();
+  wb_keyboard_enable(timestep);
 
   // Initialize motors
-  WbDeviceTag m1_motor = wb_robot_get_device("m1_motor");
-  wb_motor_set_position(m1_motor, INFINITY);
-  wb_motor_set_velocity(m1_motor, -1.0);
-  WbDeviceTag m2_motor = wb_robot_get_device("m2_motor");
-  wb_motor_set_position(m2_motor, INFINITY);
-  wb_motor_set_velocity(m2_motor, 1.0);
-  WbDeviceTag m3_motor = wb_robot_get_device("m3_motor");
-  wb_motor_set_position(m3_motor, INFINITY);
-  wb_motor_set_velocity(m3_motor, -1.0);
-  WbDeviceTag m4_motor = wb_robot_get_device("m4_motor");
-  wb_motor_set_position(m4_motor, INFINITY);
-  wb_motor_set_velocity(m4_motor, 1.0);
+  motor_t motors = 
+  {
+    .frontLeft = wb_robot_get_device("m1_motor"), // Front left
+    .rearLeft = wb_robot_get_device("m2_motor"), // Rear left
+    .rearRight = wb_robot_get_device("m3_motor"), // Rear right, 
+    .frontRight = wb_robot_get_device("m4_motor")  // Front right
+  };
+  initMotors(&motors);
 
   // Initialize sensors
-  WbDeviceTag imu = wb_robot_get_device("inertial_unit");
-  wb_inertial_unit_enable(imu, timestep);
-  WbDeviceTag gps = wb_robot_get_device("gps");
-  wb_gps_enable(gps, timestep);
-  wb_keyboard_enable(timestep);
-  WbDeviceTag gyro = wb_robot_get_device("gyro");
-  wb_gyro_enable(gyro, timestep);
-  WbDeviceTag camera = wb_robot_get_device("camera");
-  wb_camera_enable(camera, timestep);
-  WbDeviceTag accelerometer = wb_robot_get_device("accelerometer");
-  wb_accelerometer_enable(accelerometer, timestep);
-  WbDeviceTag altimeter = wb_robot_get_device("altimeter");
-  wb_altimeter_enable(altimeter, timestep);
+  sensor_t sensors = 
+  {
+    .imu = wb_robot_get_device("inertial_unit"),
+    .gyro = wb_robot_get_device("gyro"),
+    .accelerometer = wb_robot_get_device("accelerometer"),
+    .tofsensor = wb_robot_get_device("tofSensor"),
+    .camera = wb_robot_get_device("camera"),
+    .gps = wb_robot_get_device("gps")
+    // .opticalflow = wb_robot_get_device("opticalFlowSensor")
+  };
+  initSensors(&sensors, timestep);
 
+  enum States
+  {
+    START,
+    SEARCH,
+    ENGAGE,
+    LAND,
+    MISSION_COMPLETE
+  };
+  int state = 0;
 
+  coord_t opticalPoint = {2.15,0.3,1.5}; // Location of the optical point in global coordinates
+
+  // Initialize camera variables
   bool autonomous = false;
   bool recording = false;
   bool network = false;
@@ -94,320 +150,192 @@ int main(int argc, char **argv) {
   float frameRate = 1/10;
   int image_counter = 1;
 
-  Node* path[1000]; // Array to store the path
-  int path_counter;
-  int pathLength;
-  float max_value;
+  // Initialize path planner variables
+  Node* path[1000]; // Preallocate memory for path nodes
+  Obstacle* obstacles[1000]; // Preallocate memory for obstacles
+  int pathLength = 0; // Initialize number of nodes in path
+  int numObstacles = 0; // Initialize number of obstacles
+  int node_counter = 1; // Keeps count of which node in the path the MAV is aiming for during ENGAGE state
 
   // Wait for 2 seconds
   while (wb_robot_step(timestep) != -1) {
     if (wb_robot_get_time() > 2.0)
       break;
   }
-  // Initialize variables
+  
+  // Initialize state variables
   cf_state_t measuredState = {0};
-  cf_state_t desiredState = {0};
-  float past_v_x = 0;
-  float past_v_y = 0;
-  float past_v_z = 0;
-  float pastTime = wb_robot_get_time();
-  float x_global = 0;
-  float y_global = 0;
-  float z_global = 0;
+  cf_state_t desiredState = {.altitude = FLYING_ALTITUDE};
+  cf_state_t previousState = {0};
 
   // Initialize PID gains.
-  gainsPid_t gainsPid;
-  gainsPid.kp_att_y = 1;
-  gainsPid.kd_att_y = 0.5;
-  gainsPid.kp_att_rp = 0.5;
-  gainsPid.kd_att_rp = 0.1;
-  gainsPid.kp_vel_xy = 2;
-  gainsPid.kd_vel_xy = 0.5;
-  gainsPid.kp_z = 10;
-  gainsPid.ki_z = 5;
-  gainsPid.kd_z = 5;
-  init_pid_attitude_fixed_height_controller();
+  controlError_t altitudeError = {.kp = 10, .ki = 1.5, .kd = 20, .integrator = 0, .previousError = 0}; // Well tuned
+  controlError_t rollError = {.kp = 2, .ki = 0, .kd = 3, .integrator = 0, .previousError = 0};
+  controlError_t pitchError = {.kp = 2, .ki = 0, .kd = 3, .integrator = 0, .previousError = 0};
+  controlError_t yawError = {.kp = 2, .ki = 0, .kd = 1, .integrator = 0, .previousError = 0}; // Well tuned
+  controlError_t vxError = {.kp = 1, .ki = 0, .kd = 2, .integrator = 0, .previousError = 0};
+  controlError_t vyError = {.kp = 2, .ki = 0, .kd = 1, .integrator = 0, .previousError = 0};
 
-  float height_desired = FLYING_ALTITUDE;
+  float pastTime = wb_robot_get_time();
 
   // Initialize struct for motor power
   motorPower_t motorPower;
 
-  printf("\n");
+  float height_desired = FLYING_ALTITUDE;
+  float prev_altitude = 0;
 
-  printf("====== Controls =======\n");
-
-  printf(" The Crazyflie can be controlled from your keyboard!\n");
-  printf(" All controllable movement is in body coordinates\n");
-  printf("- Use the up, back, right and left button to move in the horizontal plane\n");
-  printf("- Use Q and E to rotate around yaw\n ");
-  printf("- Use W and S to go up and down\n");
-  printf("- Use A and D to enable/disable the autonomous spiral search protocol\n");
-
-  coord_t prevState = {0};
-  cf_state_t currentState = {0};
-
-  currentState.r_max = 5;
-  const float r_step = 0.05; // Step size per 
-  const float yaw = 0.005; // Rate of angular increase relative to radial (m/rad)
+  // Starting and goal positions (x, y, z, yaw)
+  coord_t start = {measuredState.x, measuredState.y, measuredState.altitude, measuredState.yaw};
+  coord_t goal = {opticalPoint.x - 0.3, opticalPoint.y, opticalPoint.z, 0}; // Goal position
+  Obstacle obstacle = // Define an obstacle
+  {
+    .min={0.6, -1.2, 0},
+    .max={1.0, 0.4, 4},
+    .margin=0.3
+  };
+  obstacles[0] = &obstacle;
+  numObstacles = 1;
+  float totalCost = AStar(start, goal, path, &pathLength, &obstacles, numObstacles);
+  // printPath(path, pathLength);
+  // drawPath(path, pathLength, obstacles, numObstacles);
 
   while (wb_robot_step(timestep) != -1)
   {
     const float dt = wb_robot_get_time() - pastTime;
 
-    dt_counter += dt;
+    dt_counter += dt; // Sums up time passage for camera recording frame rate calculations
     
-    // Ground truth position measurements
-    coord_t groundTruth;
-    groundTruth.x = wb_gps_get_values(gps)[0];
-    groundTruth.y = wb_gps_get_values(gps)[1];
-    groundTruth.z = wb_gps_get_values(gps)[2];
+    // Collect sensor measurements |    
+    measurementUpdate(&sensors, &measuredState, &previousState, dt);
 
-    // Get measurements
-    measuredState.roll = wb_inertial_unit_get_roll_pitch_yaw(imu)[0];
-    measuredState.pitch = wb_inertial_unit_get_roll_pitch_yaw(imu)[1];
-    measuredState.yaw = wb_gyro_get_values(gyro)[2];
-    measuredState.altitude = wb_altimeter_get_value(altimeter);
-    float actualYaw = wb_inertial_unit_get_roll_pitch_yaw(imu)[2];
-    float actual_v_x = (groundTruth.x - prevState.x) / dt;
-    float actual_v_y = (groundTruth.y - prevState.y) / dt;
-    
-    // Get body fixed velocities
-    // measuredState.vx =  actual_v_x * cos(actualYaw) + actual_v_y * sin(actualYaw);
-    // measuredState.vy = -actual_v_x * sin(actualYaw) + actual_v_y * cos(actualYaw);
+    //  |------------------------------------------------------------|
+    //  |-------------------- STATE  MACHINE ------------------------|
+    //  |------------------------------------------------------------|
 
-    float a_x = wb_accelerometer_get_values(accelerometer)[0]; // Acceleration
-    float a_y = wb_accelerometer_get_values(accelerometer)[1]; // Acceleration
-    float a_z = wb_accelerometer_get_values(accelerometer)[2]; // Acceleration
-
-    // Calculate velocity and position
-    float v_x = past_v_x + a_x*dt;
-    float v_y = past_v_y + a_y*dt;
-    float v_z = past_v_z + a_z*dt;
-
-    measuredState.vx =  v_x * cos(actualYaw) + v_y * sin(actualYaw);
-    measuredState.vy = -v_x * sin(actualYaw) + v_y * cos(actualYaw);
-    printf("Measured v: (%f,%f)\n", v_x, v_x);
-    printf("Actual v:   (%f,%f)\n", actual_v_x, actual_v_y);
-    printf("--------------------------\n");
-
-    x_global += v_x*dt;
-    y_global += v_y*dt;
-    z_global += v_z*dt;
-
-    measuredState.x = x_global;
-    measuredState.y = y_global;
-    measuredState.z = z_global;
-
-    // printf("Measured position: (%f,%f)\n", x_global,y_global);
-    // printf("Actual position:   (%f,%f)\n", groundTruth.x,groundTruth.y);
-    // printf("--------------------------\n");
-    coord_t opticalPoint = {2.15,0.3,1.5};
-
-
-
-    // Initialize values
-    desiredState.roll = 0;
-    desiredState.pitch = 0;
-    desiredState.vx = 0;
-    desiredState.vy = 0;
-    desiredState.yaw = 0;
-    desiredState.altitude = FLYING_ALTITUDE;
-
-    currentState.dt = dt;
-    currentState.x = x_global;
-    currentState.y = y_global;
-    currentState.z = z_global;
-    currentState.vx = actual_v_x;
-    currentState.vy = actual_v_y;
-    currentState.yaw = actualYaw;
-
-    if(autonomous)
+        // State machine
+    switch (state)
     {
-      int key = wb_keyboard_get_key();
-      while (key > 0)
-      {
-        switch (key)
+      case START:
+        if(fabs(measuredState.altitude - FLYING_ALTITUDE) < 0.01 && fabs(measuredState.altitude - prev_altitude) < 0.005)
         {
-          case 'D':
-            printf("---Returning to manual control---\n");
-            autonomous = false;
-            break;
-          case 'N':
-            if(!network)
-            {
-              printf("---Light source detected!---\n");
-              network = true;
-              path_counter = 0;
-              pathLength = 0;
-              
-              // Starting position (x, y, z, yaw)
-              coord_t start = {currentState.x, currentState.y, currentState.z, currentState.yaw*dt*180/M_PI};
-              coord_t goal = {opticalPoint.x - 0.3, opticalPoint.y, opticalPoint.z, 0}; // Goal position
-              
-              float totalCost = AStar(start, goal, path, &pathLength);
-              printPath(path, pathLength);
-            }
-            break;
-          case 'O':
-            if(network)
-            {
-              printf("---Light source lost. Returning to search---\n");
-              network = false;
-            }
-            break;
-          case 'R':
-            if(!recording)
-            {
-              printf("---Recording camera stream---\n");
-              recording = true;
-              groundTruthData = fopen("../../data_collection/data.csv","w");
-            }
-            break;
-          case 'X':
-            if(recording)
-            {
-              printf("---Aborted recording---\n");
-              recording = false;
-              fclose(groundTruthData);
-            }
-            break;
+          state = ENGAGE;
+          // state = LAND;
+          printf("########################## \n");
+          printf("Entering search pattern \n");
+          printf("########################## \n");
         }
-        key = wb_keyboard_get_key();
-      }
+        break;
 
-      if (network)
-      {
-        if (path_counter != pathLength)
+      case SEARCH:  // Add spiral search logic here
+        // Choose between 2D or 3D spiral search
+        // spiral_search_2d(&measuredState, &desiredState);  // Call for 2D search
+        // Or:
+        // spiral_search_3d(&measuredState, &desiredState);  // Call for 3D search with altitude oscillation
+        desiredState.yaw = M_PI/4;
+        desiredState.x = 0.5;
+        desiredState.y = 0.5;
+        // if(fabs(measuredState.x - desiredState.x) < 0.01 && fabs(measuredState.x - previousState.x) < 0.005)
+        // {
+        //   state = LAND;
+        //   printf("########################## \n");
+        //   printf("LANDING \n");
+        //   printf("########################## \n");
+        // }
+        break;
+
+      case ENGAGE:
+        // Engagement logic, if applicable
+        if (fabs(measuredState.x - opticalPoint.x + 0.3) < 0.1 && fabs(measuredState.y - opticalPoint.y) < 0.1 && fabs(measuredState.altitude - opticalPoint.z) < 0.1)
         {
-          desiredState.vx = path[path_counter]->coord.x; // - currentState.x;
-          desiredState.vy = path[path_counter]->coord.y; // - currentState.y;
-          desiredState.altitude *= path[path_counter]->coord.z*dt/FLYING_ALTITUDE; // - currentState.z)*dt;
-          desiredState.yaw = path[path_counter]->coord.yaw*M_PI/180 - currentState.yaw;
-          
-          if(desiredState.x == path[path_counter]->coord.x && 
-             desiredState.y == path[path_counter]->coord.x &&
-             desiredState.z == path[path_counter]->coord.x &&
-             desiredState.yaw == path[path_counter]->coord.yaw)
-          {
-            path_counter++;
-          }
+          printf("Reached end of path \n");
+          state = LAND;
+          break;
         }
-        else
+        else if (fabs(measuredState.x - path[node_counter]->coord.x) < 0.1 && fabs(measuredState.y - path[node_counter]->coord.y) < 0.1 && fabs(measuredState.altitude - path[node_counter]->coord.z) < 0.1)
         {
-          desiredState.vx = 0;
-          desiredState.vy = 0;
-          desiredState.altitude = 0;
-          desiredState.yaw = 0;
+            printf("Reached node %d\n", node_counter + 1);
+            if (node_counter < pathLength - 1)
+            {
+              node_counter++;
+            }
         }
-      }
-      else
-      {
-        desiredState.vx = 0;
-        desiredState.vy = 0;
-        desiredState.altitude = FLYING_ALTITUDE;
-        desiredState.yaw = 0;
-        // spiral_search(&desiredState, r_step, yaw);
-      }      
+        desiredState.x = path[node_counter]->coord.x;
+        desiredState.y = -path[node_counter]->coord.y;
+        desiredState.altitude = path[node_counter]->coord.z;
+        desiredState.yaw = path[node_counter]->coord.yaw;
+        break;
+
+      case LAND:
+        desiredState.altitude = 0.1;
+        if(fabs(measuredState.altitude - desiredState.altitude) < 0.01 && fabs(measuredState.altitude - prev_altitude) < 0.005)
+        {
+          state = MISSION_COMPLETE;
+          printf("########################## \n");
+          printf("Shutting off engines \n");
+          printf("########################## \n");
+          motorPower.frontLeft = 0;
+          motorPower.frontRight = 0;
+          motorPower.rearLeft = 0;
+          motorPower.rearRight = 0;
+        }
+        break;
+
+      case MISSION_COMPLETE:
+        motorPower.frontLeft = 0;
+        motorPower.frontRight = 0;
+        motorPower.rearLeft = 0;
+        motorPower.rearRight = 0;
     }
-    else
-    {
-      int key = wb_keyboard_get_key();
-      while (key > 0)
-      {
-        switch (key)
-        {
-          case WB_KEYBOARD_UP:
-            desiredState.vx = +0.5;
-            break;
-          case WB_KEYBOARD_DOWN:
-            desiredState.vx = -0.5;
-            break;
-          case WB_KEYBOARD_RIGHT:
-            desiredState.vy = -0.5;
-            break;
-          case WB_KEYBOARD_LEFT:
-            desiredState.vy = +0.5;
-            break;
-          case 'Q':
-            desiredState.yaw = 1.0;
-            break;
-          case 'E':
-            desiredState.yaw = -1.0;
-            break;
-          case 'W':
-            desiredState.altitude += 10*dt;
-            break;
-          case 'S':
-            desiredState.altitude -= 10*dt;
-            break;
-          case 'A':
-            if(!autonomous)
-            {
-              printf("---Initiating spiral search protocol---\n");
-              autonomous = true;
-            }
-            break;
-          case 'R':
-            if(!recording)
-            {
-              printf("---Recording camera stream---\n");
-              recording = true;
-              groundTruthData = fopen("../../data_collection/data.csv","w");
-            }
-            break;
-          case 'X':
-            if(recording)
-            {
-              printf("---Aborted recording---\n");
-              recording = false;
-              fclose(groundTruthData);
-            }
-            break;
-        }
-        key = wb_keyboard_get_key();
-      }
       
+    // PID velocity controller with fixed height
+    // pid_velocity_fixed_height_controller(&measuredState, &desiredState, pidParams, dt, &motorPower);
+    
+    // positionToAttitude(&desiredState, &measuredState);
+
+    // Calculate control errors
+    altitudeError.error = desiredState.altitude - measuredState.altitude;
+    vxError.error = (desiredState.x - measuredState.x)/10;
+    vyError.error = (desiredState.y - measuredState.y)/10;
+
+    desiredState.roll = -pid(&vyError, dt);
+    desiredState.pitch = pid(&vxError, dt);
+
+    rollError.error = constrain(desiredState.roll - measuredState.roll, -1, 1);
+    pitchError.error = -constrain(desiredState.pitch - measuredState.pitch, -2, 2);
+    yawError.error = desiredState.yaw - measuredState.yaw;
+
+    control_t controlCommands = 
+    {
+      .altitude = pid(&altitudeError, dt) + 48,
+      .roll = pid(&rollError, dt),
+      .pitch = pid(&pitchError, dt),
+      .yaw = pid(&yawError, dt)
+    };
+    // printf("Altitude error: %f\n", altitudeError.error);
+    // printf("Actual error: %f\n", desiredState.altitude - measuredState.altitude);
+    // printf("Control signal, altitude:%f\n", controlCommands.altitude);
+    // printf("Control signal, roll:%f\n", controlCommands.roll);
+    // printf("Control signal, pitch:%f\n", controlCommands.pitch);
+    // printf("Control signal, yaw:%f\n", controlCommands.yaw);
+    // printf(" \n");
+
+    if (state != MISSION_COMPLETE)
+    {
+      controller(&controlCommands, &motorPower);
     }
     
-    // Example how to get sensor data
-    // range_front_value = wb_distance_sensor_get_value(range_front));
-    // const unsigned char *image = wb_camera_get_image(camera);
 
-    float pointDistance = sqrt(pow(opticalPoint.x - groundTruth.x,2) + pow(opticalPoint.y - groundTruth.y,2));
-
-    if(recording && dt_counter >= frameRate)
-    {
-      // printf("1\n");
-      char file_template[48];
-      // printf("2\n");
-      // sn
-      sprintf(file_template,"../../data_collection/train/recording_%d.png",image_counter);
-      // printf("3\n");
-      // printf("filename: %s", *filename);
-      const char* filename = file_template;
-      wb_camera_save_image(camera, filename,0);
-      fprintf(groundTruthData, "%.2f\n", roundf(100*pointDistance)/100);
-      printf("Distance to point:%.2f",calc_distance(opticalPoint, groundTruth));
-      dt_counter = 0;
-      image_counter += 1;
-    }
-
-    // PID velocity controller with fixed height
-    pid_velocity_fixed_height_controller(measuredState, &desiredState, gainsPid, dt, &motorPower);
-    // pid_controller(measuredState, &desiredState, gainsPid, dt, &motorPower);
     // Setting motorspeed
-    wb_motor_set_velocity(m1_motor, -motorPower.m1);
-    wb_motor_set_velocity(m2_motor, motorPower.m2);
-    wb_motor_set_velocity(m3_motor, -motorPower.m3);
-    wb_motor_set_velocity(m4_motor, motorPower.m4);
+    wb_motor_set_velocity(motors.frontLeft, -motorPower.frontLeft);
+    wb_motor_set_velocity(motors.rearLeft, motorPower.rearLeft);
+    wb_motor_set_velocity(motors.rearRight, -motorPower.rearRight);
+    wb_motor_set_velocity(motors.frontRight, motorPower.frontRight);
 
     // Save past time for next time step
     pastTime = wb_robot_get_time();
-    past_v_x = v_x;
-    past_v_y = v_y;
-    past_v_z = v_z;
-    prevState = groundTruth;
+    prev_altitude = measuredState.altitude;
+    previousState.x = measuredState.x; // Update previous state
+    previousState.y = measuredState.y; 
   };
 
   // Free allocated memory
@@ -416,7 +344,32 @@ int main(int argc, char **argv) {
     free(path[i]);
   }
 
+  for (int i = 0; i < numObstacles; i++)
+  {
+    free(obstacles[i]);
+  }
+
   wb_robot_cleanup();
 
   return 0;
 }
+
+      // if (calc_distance(groundTruth, opticalPoint) < 0.1)
+      // {
+      //   printf("Reached end of path \n");
+      //   sideways_desired = 0;
+      //   forward_desired = 0;
+      //   height_diff_desired = 0;
+      // }
+      // else if (calc_distance(groundTruth, path[node_counter]->coord) < 0.1)
+      // {
+      //     printf("Reached node %d\n", node_counter + 1);
+      //     if (node_counter < pathLength - 1)
+      //     {
+      //       node_counter++;
+      //     }
+      //     // Update desired state to the next waypoint
+      //     sideways_desired = 0.5*(path[node_counter]->coord.y - groundTruth.y);
+      //     forward_desired = 0.5*(path[node_counter]->coord.x - groundTruth.x);
+      //     height_diff_desired = 0.1*(path[node_counter]->coord.z - groundTruth.z);
+      // }

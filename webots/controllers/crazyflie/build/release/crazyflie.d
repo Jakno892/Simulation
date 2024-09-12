@@ -11,5 +11,5 @@ build/release/crazyflie.o: crazyflie.c \
  /usr/local/webots/include/controller/c/webots/keyboard.h \
  /usr/local/webots/include/controller/c/webots/motor.h \
  /usr/local/webots/include/controller/c/webots/robot.h \
- /usr/local/webots/include/controller/c/webots/nodes.h pid_controller.h \
- spiral_search.h path_planner.h
+ /usr/local/webots/include/controller/c/webots/nodes.h spiral_search.h \
+ path_planner.h

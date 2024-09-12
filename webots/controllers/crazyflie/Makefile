@@ -17,7 +17,7 @@
 # You may add some variable definitions hereafter to customize the build process
 # See documentation in $(WEBOTS_HOME_PATH)/resources/Makefile.include
 
-C_SOURCES = crazyflie.c pid_controller.c spiral_search.c path_planner.c
+C_SOURCES = crazyflie.c spiral_search.c path_planner.c # pid_controller.c
 
 ### Do not modify: this includes Webots global Makefile.include
 null :=

@@ -3,6 +3,7 @@
         "string": "c",
         "stdio.h": "c",
         "math.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "cmath": "c"
     }
 }

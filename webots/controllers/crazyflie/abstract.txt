@@ -1,5 +1,0 @@
-This thesis is an attempt to find a solution for an autonomous search-and-engage 
-protocol on micro aerial vehicles (MAVs) using an external optical guidance aid.
-The system executes a search pattern along with 3D path planning 
-algorithms and PID-control while simultaneously scanning for the external optical
-source with the help of a mounted camera and a neural network.
