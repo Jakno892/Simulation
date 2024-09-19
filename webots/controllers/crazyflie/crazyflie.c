@@ -17,6 +17,7 @@
 #include <webots/keyboard.h>
 #include <webots/motor.h>
 #include <webots/robot.h>
+#include <Python.h>
 
 // Add external controller
 // #include "pid_controller.h"
@@ -24,6 +25,65 @@
 #include "path_planner.h"
 
 #define MAX_RADIUS 1.0
+
+
+
+void initPython()
+{
+    // Initialize the Python Interpreter
+    Py_Initialize();
+
+    // Load the Python module
+    PyObject *pName, *pModule, *pFunc;
+    PyObject *pArgs, *pValue;
+
+    // Step 1: Load the Python script (yolov8_integration.py)
+    pName = PyUnicode_DecodeFSDefault("yolov8_integration");
+    pModule = PyImport_Import(pName);
+    Py_DECREF(pName);
+
+    if (pModule != NULL)
+    {
+        // Step 2: Get the Python function that processes the image and returns coordinates
+        pFunc = PyObject_GetAttrString(pModule, "detect_optical_source");
+
+        // Ensure the function is callable
+        if (pFunc && PyCallable_Check(pFunc))
+        {
+            // Step 3: Call the Python function
+            pValue = PyObject_CallObject(pFunc, NULL);
+
+            if (pValue != NULL)
+            {
+                // Parse the returned Python value (tuple with x and y coordinates)
+                double x, y;
+                PyArg_ParseTuple(pValue, "dd", &x, &y);
+
+                // Print or use the coordinates in your C program
+                printf("Optical Source Coordinates: x = %f, y = %f\n", x, y);
+                Py_DECREF(pValue);
+            }
+            else
+            {
+                PyErr_Print();
+            }
+        }
+        else
+        {
+            if (PyErr_Occurred()) PyErr_Print();
+        }
+
+        Py_XDECREF(pFunc);
+        Py_DECREF(pModule);
+    }
+    else
+    {
+        PyErr_Print();
+    }
+
+    // Finalize the Python Interpreter
+    Py_Finalize();
+}
 
 typedef struct sensors
 {
@@ -80,11 +140,8 @@ void measurementUpdate(sensor_t* sensors, cf_state_t* measuredState, coord_t* pr
   measuredState->pitch = wb_inertial_unit_get_roll_pitch_yaw(sensors->imu)[1];
   measuredState->yaw = wb_inertial_unit_get_roll_pitch_yaw(sensors->imu)[2];
   measuredState->yaw_rate = wb_gyro_get_values(sensors->gyro)[2];
-  // measuredState->altitude = wb_distance_sensor_get_value(sensors->tofsensor);
-  // measuredState->altitude *= cos(measuredState->pitch)*cos(measuredState->roll);
-  measuredState->altitude = wb_gps_get_values(sensors->gps)[2];
-
-  // Calculate velocity and position 
+  measuredState->altitude = wb_distance_sensor_get_value(sensors->tofsensor);
+  measuredState->altitude *= cos(measuredState->pitch)*cos(measuredState->roll);
 
   // The Flow deck measures horizontal velocity through optical flow
   // Due to no pre-made opticalflow sensors this is simulated through
@@ -95,6 +152,7 @@ void measurementUpdate(sensor_t* sensors, cf_state_t* measuredState, coord_t* pr
 
   measuredState->vx = (pos_x - previousState->x) / dt;
   measuredState->vy = (pos_y - previousState->y) / dt;
+  velocityTransform(&measuredState);
 
   measuredState->x += measuredState->vx*dt; // Position is (re)calculated
   measuredState->y += measuredState->vy*dt; // using velocity.
@@ -102,6 +160,7 @@ void measurementUpdate(sensor_t* sensors, cf_state_t* measuredState, coord_t* pr
 
 int main(int argc, char **argv) {
   wb_robot_init();
+  initPython();
 
   const int timestep = (int)wb_robot_get_basic_time_step();
   wb_keyboard_enable(timestep);
@@ -137,12 +196,12 @@ int main(int argc, char **argv) {
     LAND,
     MISSION_COMPLETE
   };
-  int state = 0;
+  int state = START;
 
   coord_t opticalPoint = {2.15,0.3,1.5}; // Location of the optical point in global coordinates
 
   // Initialize camera variables
-  bool autonomous = false;
+  // bool autonomous = false;
   bool recording = false;
   bool network = false;
   FILE *groundTruthData;
@@ -155,7 +214,7 @@ int main(int argc, char **argv) {
   Obstacle* obstacles[1000]; // Preallocate memory for obstacles
   int pathLength = 0; // Initialize number of nodes in path
   int numObstacles = 0; // Initialize number of obstacles
-  int node_counter = 1; // Keeps count of which node in the path the MAV is aiming for during ENGAGE state
+  int nodeCounter = 1; // Keeps count of which node in the path the MAV is aiming for during ENGAGE state
 
   // Wait for 2 seconds
   while (wb_robot_step(timestep) != -1) {
@@ -168,35 +227,27 @@ int main(int argc, char **argv) {
   cf_state_t desiredState = {.altitude = FLYING_ALTITUDE};
   cf_state_t previousState = {0};
 
+  coord_t spiralCenter = {0}; // Keep track of the center of the search pattern
+
   // Initialize PID gains.
+  controlError_t vxError = {.kp = 2, .ki = 0, .kd = 0.5, .integrator = 0, .previousError = 0};
+  controlError_t vyError = {.kp = -2, .ki = 0, .kd = -0.5, .integrator = 0, .previousError = 0};
   controlError_t altitudeError = {.kp = 10, .ki = 1.5, .kd = 20, .integrator = 0, .previousError = 0}; // Well tuned
-  controlError_t rollError = {.kp = 2, .ki = 0, .kd = 3, .integrator = 0, .previousError = 0};
-  controlError_t pitchError = {.kp = 2, .ki = 0, .kd = 3, .integrator = 0, .previousError = 0};
+  controlError_t rollError = {.kp = 0.5, .ki = 0, .kd = 0.1, .integrator = 0, .previousError = 0};
+  controlError_t pitchError = {.kp = -0.5, .ki = 0, .kd = -0.1, .integrator = 0, .previousError = 0};
   controlError_t yawError = {.kp = 2, .ki = 0, .kd = 1, .integrator = 0, .previousError = 0}; // Well tuned
-  controlError_t vxError = {.kp = 1, .ki = 0, .kd = 2, .integrator = 0, .previousError = 0};
-  controlError_t vyError = {.kp = 2, .ki = 0, .kd = 1, .integrator = 0, .previousError = 0};
 
   float pastTime = wb_robot_get_time();
 
   // Initialize struct for motor power
   motorPower_t motorPower;
 
-  float height_desired = FLYING_ALTITUDE;
-  float prev_altitude = 0;
-
   // Starting and goal positions (x, y, z, yaw)
-  coord_t start = {measuredState.x, measuredState.y, measuredState.altitude, measuredState.yaw};
+  coord_t start = {measuredState.x, measuredState.y, FLYING_ALTITUDE, measuredState.yaw};
   coord_t goal = {opticalPoint.x - 0.3, opticalPoint.y, opticalPoint.z, 0}; // Goal position
-  Obstacle obstacle = // Define an obstacle
-  {
-    .min={0.6, -1.2, 0},
-    .max={1.0, 0.4, 4},
-    .margin=0.3
-  };
-  obstacles[0] = &obstacle;
-  numObstacles = 1;
+  
   float totalCost = AStar(start, goal, path, &pathLength, &obstacles, numObstacles);
-  // printPath(path, pathLength);
+  printPath(path, pathLength);
   // drawPath(path, pathLength, obstacles, numObstacles);
 
   while (wb_robot_step(timestep) != -1)
@@ -208,75 +259,146 @@ int main(int argc, char **argv) {
     // Collect sensor measurements |    
     measurementUpdate(&sensors, &measuredState, &previousState, dt);
 
+    // Check for keyboard input
+    int key = wb_keyboard_get_key();
+    while (key > 0)
+    {
+      switch (key)
+      {
+        // Disable autonomous mode
+        case 'D': 
+          printf("---Returning to manual control---\n");
+          // autonomous = false;
+          break;
+
+        // Simulate network activation, i.e. optical point found
+        case 'N':
+          if(!network)
+          {
+            network = true;
+            printf("---Light source detected!---\n");
+
+            state = ENGAGE;
+            nodeCounter = 0;
+            pathLength = 0;
+            
+            // Starting position (x, y, z, yaw)
+            coord_t start = {measuredState.x, measuredState.y, measuredState.z, measuredState.yaw*dt*180/M_PI};
+            coord_t goal = {opticalPoint.x - 0.3, opticalPoint.y, opticalPoint.z, 0}; // Goal position
+            
+            float totalCost = AStar(start, goal, path, &pathLength, &obstacles, numObstacles);
+            printPath(path, pathLength);
+          }
+          break;
+        
+        // Simulate network deactivation, i.e. optical point lost
+        case 'L':
+          if(network)
+          {
+            printf("---Light source lost. Returning to search---\n");
+            network = false;
+            spiralCenter.x = measuredState.x;
+            spiralCenter.y = measuredState.y;
+            spiralCenter.z = measuredState.altitude;
+          }
+          break;
+
+        // 
+        case 'O':
+          printf("---Light source lost. Returning to search---\n");
+          Obstacle obstacle = // Define an obstacle
+          {
+            .min={0.6, -1.2, 0},
+            .max={1.0, 0.4, 4},
+            .margin=0.3
+          };
+          obstacles[0] = &obstacle;
+          numObstacles = 1;
+          break;
+
+        // Record camera images
+        case 'R':
+          if(!recording)
+          {
+            printf("---Recording camera stream---\n");
+            recording = true;
+            groundTruthData = fopen("../../data_collection/data.csv","w");
+          }
+          break;
+
+        // Cancel camera recording
+        case 'X':
+          if(recording)
+          {
+            printf("---Aborted recording---\n");
+            recording = false;
+            fclose(groundTruthData);
+          }
+          break;
+      }
+      key = wb_keyboard_get_key();
+    }
+
     //  |------------------------------------------------------------|
     //  |-------------------- STATE  MACHINE ------------------------|
     //  |------------------------------------------------------------|
-
-        // State machine
     switch (state)
     {
       case START:
-        if(fabs(measuredState.altitude - FLYING_ALTITUDE) < 0.01 && fabs(measuredState.altitude - prev_altitude) < 0.005)
+        if(fabs(measuredState.altitude - FLYING_ALTITUDE) < 0.01 && fabs(measuredState.altitude - previousState.altitude) < 0.005)
         {
-          state = ENGAGE;
-          // state = LAND;
-          printf("########################## \n");
-          printf("Entering search pattern \n");
-          printf("########################## \n");
+          spiralCenter.x = measuredState.x;
+          spiralCenter.y = measuredState.y;
+          spiralCenter.z = measuredState.altitude;
+          state = SEARCH;
         }
         break;
 
-      case SEARCH:  // Add spiral search logic here
-        // Choose between 2D or 3D spiral search
-        // spiral_search_2d(&measuredState, &desiredState);  // Call for 2D search
-        // Or:
-        // spiral_search_3d(&measuredState, &desiredState);  // Call for 3D search with altitude oscillation
-        desiredState.yaw = M_PI/4;
-        desiredState.x = 0.5;
-        desiredState.y = 0.5;
-        // if(fabs(measuredState.x - desiredState.x) < 0.01 && fabs(measuredState.x - previousState.x) < 0.005)
-        // {
-        //   state = LAND;
-        //   printf("########################## \n");
-        //   printf("LANDING \n");
-        //   printf("########################## \n");
-        // }
+      case SEARCH:  // TODO: Add spiral search logic here
+        spiralSearch(&measuredState, &desiredState, &spiralCenter);
         break;
 
       case ENGAGE:
-        // Engagement logic, if applicable
-        if (fabs(measuredState.x - opticalPoint.x + 0.3) < 0.1 && fabs(measuredState.y - opticalPoint.y) < 0.1 && fabs(measuredState.altitude - opticalPoint.z) < 0.1)
+        if (pathLength == 0)
         {
-          printf("Reached end of path \n");
-          state = LAND;
           break;
         }
-        else if (fabs(measuredState.x - path[node_counter]->coord.x) < 0.1 && fabs(measuredState.y - path[node_counter]->coord.y) < 0.1 && fabs(measuredState.altitude - path[node_counter]->coord.z) < 0.1)
+        if (fabs(measuredState.x - goal.x) < 0.1 && fabs(measuredState.y - goal.y) < 0.1 && fabs(measuredState.altitude - goal.z) < 0.1)
         {
-            printf("Reached node %d\n", node_counter + 1);
-            if (node_counter < pathLength - 1)
+          printf("Reached end of path \n");
+          // Starting and goal positions (x, y, z, yaw)'
+          nodeCounter = 0;
+          // coord_t start = {measuredState.x, measuredState.y, FLYING_ALTITUDE, measuredState.yaw};
+          // coord_t goal = {0.5, 0.5, 0.5, -M_PI}; // Goal position
+          
+          // float totalCost = AStar(start, goal, path, &pathLength, &obstacles, numObstacles);
+          // printPath(path, pathLength);
+          break;
+        }
+        else if (fabs(measuredState.x - path[nodeCounter]->coord.x) < 0.1 && fabs(measuredState.y - path[nodeCounter]->coord.y) < 0.1 && fabs(measuredState.altitude - path[nodeCounter]->coord.z) < 0.1)
+        {
+            printf("Reached node %d\n", nodeCounter + 1);
+            printf("Measured state: (%f, %f, %f, %f)\n", measuredState.x, measuredState.y, measuredState.altitude, measuredState.yaw*180/M_PI);
+            printf(" \n");
+            if (nodeCounter < pathLength - 1)
             {
-              node_counter++;
+              nodeCounter++;
             }
         }
-        desiredState.x = path[node_counter]->coord.x;
-        desiredState.y = -path[node_counter]->coord.y;
-        desiredState.altitude = path[node_counter]->coord.z;
-        desiredState.yaw = path[node_counter]->coord.yaw;
+        desiredState.x = path[nodeCounter]->coord.x;
+        desiredState.y =  path[nodeCounter]->coord.y;
+        desiredState.altitude = path[nodeCounter]->coord.z;
+        desiredState.yaw = path[nodeCounter]->coord.yaw;
         break;
 
       case LAND:
         desiredState.altitude = 0.1;
-        if(fabs(measuredState.altitude - desiredState.altitude) < 0.01 && fabs(measuredState.altitude - prev_altitude) < 0.005)
+        if(measuredState.altitude < 0.1 && fabs(measuredState.altitude - previousState.altitude) < 0.005)
         {
           state = MISSION_COMPLETE;
           printf("########################## \n");
-          printf("Shutting off engines \n");
+          printf("MISSION COMPLETE \n");
           printf("########################## \n");
-          motorPower.frontLeft = 0;
-          motorPower.frontRight = 0;
-          motorPower.rearLeft = 0;
-          motorPower.rearRight = 0;
         }
         break;
 
@@ -286,44 +408,31 @@ int main(int argc, char **argv) {
         motorPower.rearLeft = 0;
         motorPower.rearRight = 0;
     }
-      
-    // PID velocity controller with fixed height
-    // pid_velocity_fixed_height_controller(&measuredState, &desiredState, pidParams, dt, &motorPower);
-    
-    // positionToAttitude(&desiredState, &measuredState);
-
-    // Calculate control errors
+       
+    //  Calculate control error
     altitudeError.error = desiredState.altitude - measuredState.altitude;
     vxError.error = (desiredState.x - measuredState.x)/10;
     vyError.error = (desiredState.y - measuredState.y)/10;
 
-    desiredState.roll = -pid(&vyError, dt);
+    desiredState.roll = pid(&vyError, dt);
     desiredState.pitch = pid(&vxError, dt);
 
     rollError.error = constrain(desiredState.roll - measuredState.roll, -1, 1);
-    pitchError.error = -constrain(desiredState.pitch - measuredState.pitch, -2, 2);
+    pitchError.error = constrain(desiredState.pitch - measuredState.pitch, -2, 2);
     yawError.error = desiredState.yaw - measuredState.yaw;
 
     control_t controlCommands = 
     {
-      .altitude = pid(&altitudeError, dt) + 48,
+      .altitude = pid(&altitudeError, dt) + 48, // ASCII??? Lyfter ej utan + 48...
       .roll = pid(&rollError, dt),
       .pitch = pid(&pitchError, dt),
       .yaw = pid(&yawError, dt)
     };
-    // printf("Altitude error: %f\n", altitudeError.error);
-    // printf("Actual error: %f\n", desiredState.altitude - measuredState.altitude);
-    // printf("Control signal, altitude:%f\n", controlCommands.altitude);
-    // printf("Control signal, roll:%f\n", controlCommands.roll);
-    // printf("Control signal, pitch:%f\n", controlCommands.pitch);
-    // printf("Control signal, yaw:%f\n", controlCommands.yaw);
-    // printf(" \n");
 
     if (state != MISSION_COMPLETE)
     {
       controller(&controlCommands, &motorPower);
     }
-    
 
     // Setting motorspeed
     wb_motor_set_velocity(motors.frontLeft, -motorPower.frontLeft);
@@ -333,9 +442,7 @@ int main(int argc, char **argv) {
 
     // Save past time for next time step
     pastTime = wb_robot_get_time();
-    prev_altitude = measuredState.altitude;
-    previousState.x = measuredState.x; // Update previous state
-    previousState.y = measuredState.y; 
+    previousState = measuredState; // Update previous state
   };
 
   // Free allocated memory
@@ -353,23 +460,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-
-      // if (calc_distance(groundTruth, opticalPoint) < 0.1)
-      // {
-      //   printf("Reached end of path \n");
-      //   sideways_desired = 0;
-      //   forward_desired = 0;
-      //   height_diff_desired = 0;
-      // }
-      // else if (calc_distance(groundTruth, path[node_counter]->coord) < 0.1)
-      // {
-      //     printf("Reached node %d\n", node_counter + 1);
-      //     if (node_counter < pathLength - 1)
-      //     {
-      //       node_counter++;
-      //     }
-      //     // Update desired state to the next waypoint
-      //     sideways_desired = 0.5*(path[node_counter]->coord.y - groundTruth.y);
-      //     forward_desired = 0.5*(path[node_counter]->coord.x - groundTruth.x);
-      //     height_diff_desired = 0.1*(path[node_counter]->coord.z - groundTruth.z);
-      // }

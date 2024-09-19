@@ -206,38 +206,50 @@ float AStar(coord_t start, coord_t goal, Node* path[], int* pathLength, Obstacle
                 path[*pathLength - i - 1] = temp;
             }
 
-            // Rescale the path coordinates and adjust the relative yaw value 
+            // Rescale the path coordinates, remove unnecessary nodes and adjust the relative yaw value 
             // depending on changes in the direction of travel
-            // 
-
-            float prev_yaw = path[0]->coord.yaw;
+            
+            int newPathLength = 0;
+            float prevYaw = path[0]->coord.yaw;
             rescaleCoords(&path[0]->coord);
+            path[newPathLength++] = path[0];
             
             for (int i = 1; i < *pathLength - 1; i++)
             {
                 // Rescale the obstacle coordinates
                 rescaleCoords(&path[i]->coord);
 
-                // Calculate the direction vector between the current node and the next node
-                float dx = path[i]->coord.x - path[i - 1]->coord.x;
-                float dy = path[i]->coord.y - path[i - 1]->coord.y;
-                // Calculate the yaw angle (direction) in radians, using atan2 to get the angle between the nodes
-                float yaw_difference = atan2(dy, dx) - prev_yaw;
+                // Calculate the direction vector between the current node and the previous node
+                float prevdx = path[i]->coord.x - path[i - 1]->coord.x;
+                float prevdy = path[i]->coord.y - path[i - 1]->coord.y;
+                float prevdz = path[i]->coord.z - path[i - 1]->coord.z;
 
-                if(fabs(yaw_difference) < 1e-3)
+                // Calculate the direction vector between the current node and the next node
+                float nextdx = path[i]->coord.x - path[i + 1]->coord.x;
+                float nextdy = path[i]->coord.y - path[i + 1]->coord.y;
+                float nextdz = path[i]->coord.z - path[i + 1]->coord.z;
+
+                // Calculate the yaw angle (direction) in radians, using atan2 to get the angle between the nodes
+                // float yaw_difference = atan2(dy, dx) - prevYaw;
+
+                if(fabs(prevdx - nextdx) > 1e-3 || fabs(prevdy - nextdy) > 1e-3 || fabs(prevdz - nextdz) > 1e-3)
                 {
-                    path[i]->coord.yaw = 0;
+                    
                 }
                 else
                 {
-                    path[i]->coord.yaw = yaw_difference;
+                    float yaw = atan2(prevdy, prevdx);
+                    path[i]->coord.yaw = yaw - prevYaw;
+                    prevYaw = yaw;
+                    path[newPathLength++] = path[i];
                 }
-
-                prev_yaw = atan2(dy, dx);
             }
-            path[*pathLength - 1]->coord.yaw = goal.yaw - prev_yaw;
-
-
+            path[*pathLength - 1]->coord.yaw = goal.yaw - prevYaw;
+            rescaleCoords(&path[*pathLength - 1]->coord);
+            path[newPathLength++] = path[*pathLength - 1];
+            printf("Path length: %d, new path length: %d\n", *pathLength, newPathLength);
+            // Update the path length
+            *pathLength = newPathLength;
             for (int j = 0; j < numObstacles; j++)
             {
                 rescaleObstacle(obstacles[j]);

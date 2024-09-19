@@ -4,10 +4,10 @@
 #include "spiral_search.h"
 
 #define SAFETY_MARGIN 0.2
-#define GRID_SIZE_X 20
-#define GRID_SIZE_Y 20
-#define GRID_SIZE_Z 10
-#define GRID_CELL_SIZE 0.2
+#define GRID_SIZE_X 50
+#define GRID_SIZE_Y 50
+#define GRID_SIZE_Z 50
+#define GRID_CELL_SIZE 0.1
 #define INF 1e9
 #define OBSTACLE_PENALTY 1000.0
 #define GRID_CHAR '.'

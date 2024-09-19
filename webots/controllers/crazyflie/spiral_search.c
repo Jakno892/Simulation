@@ -4,32 +4,45 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-void spiral_search(cf_state_t *measuredState, cf_state_t *desiredState, float r_step, float yaw_rate)
+void spiralSearch(cf_state_t *measuredState, cf_state_t *desiredState, coord_t* spiralCenter)
 {
+  static int altitudeStepCounter = 0;
+  static int altitudeDirection = 1;  // 1 for increasing altitude, -1 for decreasing
   float angle = measuredState->yaw;
-  float radius = 1;
-  float r_max = 5;
 
-  // Increase the spiral radius and yaw angle.
-  printf("actual radius: %f \n",radius);
-
-  if (radius < r_max)
+  float dx = measuredState->x - spiralCenter->x;
+  float dy = measuredState->y - spiralCenter->y;
+  float r = sqrt(dx*dx + dy*dy);
+  float altitudeCenter = spiralCenter->z;
+  
+  // Update the radial distance (r) with the fixed radial speed
+  r += RADIAL_VELOCITY;
+  if (r > MAX_RADIUS)
   {
-    radius += r_step;
+      // If the spiral reaches max radius, reset to oscillating altitude
+      r = MAX_RADIUS;
+      
+      // Oscillate altitude
+      measuredState->altitude += altitudeDirection * RADIAL_VELOCITY;
+      if (measuredState->altitude >= altitudeCenter + MAX_ALTITUDE_CHANGE || measuredState->altitude <= altitudeCenter - MAX_ALTITUDE_CHANGE) {
+          altitudeDirection *= -1.0f;  // Reverse direction
+      }
   }
-  angle += yaw_rate;
 
-  // Set the desired x and y speeds
-  measuredState->vx = radius;
+  // Calculate new angle angle based on radial speed and angular velocity
+  angle += ANGULAR_VELOCITY / r;  // Ensure angular velocity decreases as r increases
 
-  // Update the relative position
-  measuredState->x = measuredState->vx;
-  measuredState->y = measuredState->vy;
+  // Compute relative x and y based on polar coordinates
+  float x_relative = r * cosf(angle);
+  float y_relative = r * sinf(angle);
+  
+  // Set the desired position incrementally in relative coordinates
+  desiredState->x = spiralCenter->x + x_relative;
+  desiredState->y = spiralCenter->y + y_relative;
+  desiredState->z = spiralCenter->z + altitudeDirection*0.01;
 
-  // Update the radius and yaw
-
-  // measuredState->r = radius;
-  measuredState->yaw = angle;
+  // Set the yaw to always point in the direction of the spiral's movement (tangential)
+  desiredState->yaw = angle;
 }
 
 float pid(controlError_t* error, float dt)
@@ -56,29 +69,6 @@ void controller(control_t* controlCommands, motorPower_t* motorCommands)
   motorCommands->frontRight = constrain(controlCommands->altitude + controlCommands->roll + controlCommands->pitch - controlCommands->yaw, -600, 600);
 }
 
-// void positionToAttitude(cf_state_t* desiredState, cf_state_t* measuredState)
-// {
-
-//   controlError_t x_velocityError = 
-//   {
-//     .error = desiredState->x - measuredState->x,
-//     .kp = 2,
-//     .kd = 0.5
-//   };
-//   // Calculate horizontal position errors
-//   float dx = desiredState->x - measuredState->x;
-//   float dy = desiredState->y - measuredState->y;
-
-//   // Calculate desired horizontal velocities (e.g., proportionally slowing as you near target)
-//   desiredState->vx = dx * 1;
-//   desiredState->vy = dy * 1;
-
-//   // Calculate roll and pitch angles from velocity
-//   desiredState->roll = atan2(desiredState->vy, g);
-//   desiredState->pitch = atan2(desiredState->vx, g);
-
-// }
-
 float constrain(float value, const float minVal, const float maxVal)
 {
   return fminf(maxVal, fmaxf(minVal, value));
@@ -89,131 +79,69 @@ float calc_distance(coord_t point_1, coord_t point_2)
   return sqrt(pow(point_1.x - point_2.x,2) + pow(point_1.y - point_2.y,2) + pow(point_1.z - point_2.z,2));
 }
 
-coord_t transform(coord_t *rpy, coord_t *xyz)
+void velocityTransform(cf_state_t* state)
 {
-  float sr = sin(rpy->x);
-  float sp = sin(rpy->y); // Sine values of roll, pitch and yaw
-  float sy = sin(rpy->z);
+  float sinYaw = sin(state->yaw);
+  float cosYaw = cos(state->yaw);
 
-  float cr = cos(rpy->x);
-  float cp = cos(rpy->y); // Cosine values of roll, pitch and yaw
-  float cy = cos(rpy->z);
-
-  coord_t global = {0};
-
-  // Rotate the coordinate system from bidy fixed coordinates to global coordinates
-
-  global.x = cy*cp*xyz->x +
-            (cy*sp*sr - sy*cr)*xyz->y + 
-            (cy*sp*cr + sy*sr)*xyz->z;
-  
-  global.y = sy*cp*xyz->x + 
-            (sy*sp*sr + cy*cr)*xyz->y + 
-            (sy*sp*cr - cy*sr)*xyz->z;
-
-  global.z = -sp*xyz->x + cp*sr*xyz->y + cp*cr*xyz->z;
-
-  return global;
-}
-
-coord_t inverse_transform(coord_t *rpy, coord_t *xyz)
-{
-  float sr = sin(rpy->x);
-  float sp = sin(rpy->y); // Sine values of roll, pitch and yaw
-  float sy = sin(rpy->z);
-
-  float cr = cos(rpy->x);
-  float cp = cos(rpy->y); // Cosine values of roll, pitch and yaw
-  float cy = cos(rpy->z);
-
-  coord_t body_fixed = {0};
+  float vx = state->vx;
+  float vy = state->vy;
 
   // Rotate the coordinate system from global coordinates to body fixed coordinates
 
-  body_fixed.x = cy*cp*xyz->x + sy*cp*xyz->y + -sp*xyz->z;
-               
-  body_fixed.y = (cy*sp*sr - sy*cr)*xyz->x + (sy*sp*sr + cy*cr)*xyz->y + cp*sr*xyz->z;
-
-  body_fixed.z = (cy*sp*cr + sy*sr)*xyz->x + (sy*sp*cr - cy*sr)*xyz->y + cp*cr*xyz->z;
-
-  return body_fixed;
+  state->vx = cosYaw*vx + sinYaw*vy;
+  state->vy = -sinYaw*vx + cosYaw*vy;
 }
 
-coord_t get_velocity(const unsigned char *image)
+// Transform from world frame to body frame
+void transform(cf_state_t* state)
 {
-  coord_t x = {0};
-  return x;
+  float sinRoll = sin(state->roll);
+  float sinPitch = sin(state->pitch); // Sine values of roll, pitch and yaw
+  float sinYaw = sin(state->yaw);
+
+  float cosRoll = cos(state->roll);
+  float cosPitch = cos(state->pitch); // Cosine values of roll, pitch and yaw
+  float cosYaw = cos(state->yaw);
+
+  float x = state->x;
+  float y = state->y;
+  float z = state->z;
+
+  // Rotate the coordinate system from global coordinates to body fixed coordinates
+
+  state->x = cosYaw*cosPitch*x + sinYaw*cosPitch*y + -sinPitch*z;      
+  state->y = (cosYaw*sinPitch*sinRoll - sinYaw*cosRoll)*x + (sinYaw*sinPitch*sinRoll + cosYaw*cosRoll)*y + cosPitch*sinRoll*z;
+  state->z = (cosYaw*sinPitch*cosRoll + sinYaw*sinRoll)*x + (sinYaw*sinPitch*cosRoll - cosYaw*sinRoll)*y + cosPitch*cosRoll*z;
+
+  printf("Returning from transform\n");
+
 }
 
-// Function to move to the next waypoint
-void move_to_next_waypoint(int index, int max)
+// Transform from body frame to world frame
+void inverse_transform(cf_state_t* state)
 {
-    if (index < max - 1) {
-        index++;
-    }
-}
+  float sinRoll = sin(state->roll);
+  float sinPitch = sin(state->pitch); // Sine values of roll, pitch and yaw
+  float sinYaw = sin(state->yaw);
 
-// float constrain(float value, const float minVal, const float maxVal) {
-//   return fminf(maxVal, fmaxf(minVal, value));
-// }
+  float cosRoll = cos(state->roll);
+  float cosPitch = cos(state->pitch); // Cosine values of roll, pitch and yaw
+  float cosYaw = cos(state->yaw);
 
-void spiral_search_2d(cf_state_t *measuredState, cf_state_t *desiredState) {
-    static float r = 0.05;  // Start radius of the spiral
-    static float angle = 0.0;  // Angular position in radians
-    const float angular_speed = 0.1;  // Rate of increase of the angle (rad/s)
-    const float radius_step = 0.001;  // Rate of expansion of the radius per step
-    const float yaw_rate = 0.005;  // Slow yaw rotation
-    
-    // Update the angle and radius
-    angle += angular_speed;
-    r += radius_step;
-    
-    // Calculate the desired velocity for the spiral motion in x and y
-    desiredState->vx = r * cos(angle);
-    desiredState->vy = r * sin(angle);
-    
-    // Keep altitude constant
-    desiredState->altitude = FLYING_ALTITUDE;
-    
-    // Slow yaw rotation to cover the area
-    desiredState->yaw_rate = yaw_rate;
-}
+  float x = state->x;
+  float y = state->y;
+  float z = state->z;
 
-void spiral_search_3d(cf_state_t *measuredState, cf_state_t *desiredState) {
-    static float r = 0.05;  // Start radius of the spiral
-    static float angle = 0.0;  // Angular position in radians
-    static float altitude_offset = 0.0;  // Offset for altitude oscillation
-    static bool ascending = true;  // Direction of altitude change
-    const float angular_speed = 0.1;  // Rate of increase of the angle (rad/s)
-    const float radius_step = 0.001;  // Rate of expansion of the radius per step
-    const float yaw_rate = 0.005;  // Slow yaw rotation
-    const float altitude_step = 0.005;  // Change in altitude per step
-    const float MAX_ALTITUDE = FLYING_ALTITUDE + 1;
-    const float MIN_ALTITUDE = FLYING_ALTITUDE - 1;
-    
-    // Update the angle and radius
-    angle += angular_speed;
-    r += radius_step;
+  // Rotate the coordinate system from bidy fixed coordinates to global coordinates
 
-    // Calculate the desired velocity for the spiral motion in x and y
-    desiredState->vx = r * cos(angle);
-    desiredState->vy = r * sin(angle);
-    
-    // Handle altitude oscillation
-    if (ascending) {
-        altitude_offset += altitude_step;
-        if (desiredState->altitude + altitude_offset > MAX_ALTITUDE) {
-            ascending = false;
-        }
-    } else {
-        altitude_offset -= altitude_step;
-        if (desiredState->altitude + altitude_offset < MIN_ALTITUDE) {
-            ascending = true;
-        }
-    }
+  state->x = cosYaw*cosPitch*x +
+            (cosYaw*sinPitch*sinRoll - sinYaw*cosRoll)*y + 
+            (cosYaw*sinPitch*cosRoll + sinYaw*sinRoll)*z;
+  
+  state->y = sinYaw*cosPitch*x + 
+            (sinYaw*sinPitch*sinRoll + cosYaw*cosRoll)*y + 
+            (sinYaw*sinPitch*cosRoll - cosYaw*sinRoll)*z;
 
-    desiredState->altitude = FLYING_ALTITUDE + altitude_offset;
-    
-    // Slow yaw rotation to cover the area
-    desiredState->yaw_rate = yaw_rate;
+  state->z = -sinPitch*x + cosPitch*sinRoll*y + cosPitch*cosRoll*z;
 }

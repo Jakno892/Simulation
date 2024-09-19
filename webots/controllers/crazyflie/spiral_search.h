@@ -10,6 +10,13 @@
 #endif
 
 #define g 9.81
+#define MAX_RADIUS 1.0f
+#define ANGULAR_STEP 0.1f
+#define RADIAL_STEP 0.02f
+#define RADIAL_VELOCITY 0.001f
+#define ANGULAR_VELOCITY 0.000002f
+#define ALTITUDE STEPS 0.02f
+#define MAX_ALTITUDE_CHANGE 1.0f
 
 
 typedef struct cf_state
@@ -48,22 +55,15 @@ typedef struct controlError_s {
   float integrator, intMax;
   float kp, ki, kd;
 } controlError_t;
-  
-typedef struct gainsPid {
-    float kp_pos_xy, kp_pos_z;     // Proportional gain for position control
-    float ki_pos_xy, ki_pos_z;     // Integral gain for position control
-    float kd_pos_xy, kd_pos_z;     // Derivative gain for position control
-    float kp_vel_xy, kp_vel_z;     // Proportional gain for velocity control
-    float kd_vel_xy, kd_vel_z;     // Derivative gain for velocity control
-} gainsPid_t;
 
-void spiral_search(cf_state_t* current_state, cf_state_t* desired_state, float r_step, float yaw_rate);
+void spiralSearch(cf_state_t* current_state, cf_state_t* desired_state, coord_t* spiralCenter);
 void controller(control_t* controlCommands, motorPower_t* motorCommands);
 float pid(controlError_t* error, float dt);
 // void positionToAttitude(cf_state_t* desiredStatex, cf_state_t* measuredState);
 float calc_distance(coord_t point_1, coord_t point_2);
-coord_t transform(coord_t* rpy, coord_t* xyz);
-coord_t inverse_transform(coord_t* rpy, coord_t* xyz);
+void velocityTransform(cf_state_t* state);
+void transform(cf_state_t* state);
+void inverse_transform(cf_state_t* state);
 coord_t get_velocity(const unsigned char* image);
 float constrain(float value, const float minVal, const float maxVal);
 #endif
